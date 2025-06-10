@@ -19,7 +19,7 @@ class OpenSearchStack(Stack):
         # 1. 암호화 정책
         encryption_policy = opensearchserverless.CfnSecurityPolicy(
             self, "NotionChatbotEncryptionPolicy",
-            name="notion-chatbot-encryption-policy",
+            name="notion-encrypt-policy",
             type="encryption",
             policy=json.dumps({
                 "Rules": [
@@ -35,7 +35,7 @@ class OpenSearchStack(Stack):
         # 2. 네트워크 정책
         network_policy = opensearchserverless.CfnSecurityPolicy(
             self, "NotionChatbotNetworkPolicy",
-            name="notion-chatbot-network-policy",
+            name="notion-network-policy",
             type="network",
             policy=json.dumps([
                 {
@@ -78,7 +78,7 @@ class OpenSearchStack(Stack):
         # 5. 데이터 접근 정책
         data_access_policy = opensearchserverless.CfnAccessPolicy(
             self, "NotionChatbotDataAccessPolicy",
-            name="notion-chatbot-data-access-policy",
+            name="notion-data-access-policy",
             type="data",
             policy=json.dumps([
                 {
