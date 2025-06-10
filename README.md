@@ -13,7 +13,7 @@ Notion 워크스페이스의 내용을 기반으로 질문에 답변하는 AI �
 
 ## 🏗️ 시스템 아키텍처
 
-\`\`\`mermaid
+```mermaid
 graph TB
     subgraph AWS Cloud
         subgraph Data Sync
@@ -37,7 +37,7 @@ graph TB
     
     J[사용자] -->|질문| E
     C -->|페이지 데이터| B
-\`\`\`
+```
 
 ## 🔄 동작 방식
 
