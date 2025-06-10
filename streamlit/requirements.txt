@@ -1,0 +1,10 @@
+streamlit==1.28.1
+boto3==1.34.0
+python-dotenv==1.0.0
+asyncio-mqtt==0.13.0
+websockets==12.0
+mcp==0.4.0
+notion-client==2.2.1
+requests==2.31.0
+pandas==2.1.4
+plotly==5.17.0
