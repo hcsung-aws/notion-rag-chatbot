@@ -11,7 +11,7 @@ from aws_cdk import (
 from constructs import Construct
 
 class EcsStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, vpc, secrets, knowledge_base_id, data_bucket, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, vpc, secrets, knowledge_base_id, data_bucket, opensearch_endpoint, vector_lambda_arn, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # ECS Cluster
@@ -43,7 +43,30 @@ class EcsStack(Stack):
             )
         )
 
-        # Lambda 호출 권한 추가
+        # OpenSearch 접근 권한 추가
+        task_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "aoss:APIAccessAll"
+                ],
+                resources=["*"]
+            )
+        )
+
+        # Bedrock Titan Embedding 모델 접근 권한 추가
+        task_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "bedrock:InvokeModel"
+                ],
+                resources=[
+                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v1"
+                ]
+            )
+        )
+        # Lambda 호출 권한 추가 (기존 + 벡터 Lambda)
         task_role.add_to_policy(
             iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
@@ -51,7 +74,8 @@ class EcsStack(Stack):
                     "lambda:InvokeFunction"
                 ],
                 resources=[
-                    f"arn:aws:lambda:{self.region}:{self.account}:function:NotionChatbotBedrockStack-NotionSyncFunction*"
+                    f"arn:aws:lambda:{self.region}:{self.account}:function:NotionChatbotBedrockStack-NotionSyncFunction*",
+                    vector_lambda_arn
                 ]
             )
         )
@@ -102,7 +126,9 @@ class EcsStack(Stack):
                 "STREAMLIT_SERVER_PORT": "8501",
                 "STREAMLIT_SERVER_ADDRESS": "0.0.0.0",
                 "NOTION_TOKEN": "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",
-                "KNOWLEDGE_BASE_ID": knowledge_base_id
+                "KNOWLEDGE_BASE_ID": knowledge_base_id,
+                "OPENSEARCH_ENDPOINT": opensearch_endpoint,
+                "VECTOR_LAMBDA_ARN": vector_lambda_arn
             },
             secrets={
                 "NOTION_TOKEN_SECRET_ARN": ecs.Secret.from_secrets_manager(secrets["notion_token"]),
@@ -110,30 +136,123 @@ class EcsStack(Stack):
             },
             command=[
                 "sh", "-c", 
-                "pip install streamlit boto3 requests notion-client && "
+                "pip install streamlit boto3 requests notion-client opensearch-py && "
                 "mkdir -p /app && cd /app && "
+                "cat > opensearch_client.py << 'OPENSEARCH_EOF'\n"
+                "import json\n"
+                "import boto3\n"
+                "import requests\n"
+                "from typing import List, Dict, Any\n"
+                "import streamlit as st\n"
+                "\n"
+                "class OpenSearchClient:\n"
+                "    def __init__(self, endpoint: str):\n"
+                "        self.endpoint = endpoint\n"
+                "        self.bedrock_client = boto3.client('bedrock-runtime', region_name='ap-northeast-2')\n"
+                "    \n"
+                "    def generate_embedding(self, text: str) -> List[float]:\n"
+                "        try:\n"
+                "            response = self.bedrock_client.invoke_model(\n"
+                "                modelId='amazon.titan-embed-text-v1',\n"
+                "                body=json.dumps({'inputText': text[:8000]})\n"
+                "            )\n"
+                "            response_body = json.loads(response['body'].read())\n"
+                "            return response_body['embedding']\n"
+                "        except Exception as e:\n"
+                "            st.error(f'임베딩 생성 오류: {str(e)}')\n"
+                "            return []\n"
+                "    \n"
+                "    def semantic_search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:\n"
+                "        try:\n"
+                "            query_embedding = self.generate_embedding(query)\n"
+                "            if not query_embedding:\n"
+                "                return []\n"
+                "            \n"
+                "            search_body = {\n"
+                "                'size': limit,\n"
+                "                'query': {\n"
+                "                    'knn': {\n"
+                "                        'embedding': {\n"
+                "                            'vector': query_embedding,\n"
+                "                            'k': limit\n"
+                "                        }\n"
+                "                    }\n"
+                "                },\n"
+                "                '_source': ['id', 'title', 'content', 'url', 'metadata']\n"
+                "            }\n"
+                "            \n"
+                "            response = requests.post(\n"
+                "                f'{self.endpoint}/notion-index/_search',\n"
+                "                json=search_body,\n"
+                "                headers={'Content-Type': 'application/json'}\n"
+                "            )\n"
+                "            \n"
+                "            if response.status_code == 200:\n"
+                "                results = response.json()\n"
+                "                documents = []\n"
+                "                for hit in results.get('hits', {}).get('hits', []):\n"
+                "                    source = hit['_source']\n"
+                "                    documents.append({\n"
+                "                        'id': source.get('id'),\n"
+                "                        'title': source.get('title', '제목 없음'),\n"
+                "                        'content': source.get('content', ''),\n"
+                "                        'url': source.get('url', ''),\n"
+                "                        'similarity_score': hit['_score']\n"
+                "                    })\n"
+                "                return documents\n"
+                "            return []\n"
+                "        except Exception as e:\n"
+                "            st.error(f'의미 검색 오류: {str(e)}')\n"
+                "            return []\n"
+                "OPENSEARCH_EOF\n"
                 "cat > app.py << 'EOF'\n"
                 "import streamlit as st\n"
                 "import boto3\n"
                 "import json\n"
                 "import os\n"
                 "from datetime import datetime\n"
+                "from opensearch_client import OpenSearchClient\n"
                 "\n"
                 "st.set_page_config(page_title='무엇이든 물어보세요! 🤖', page_icon='🤖', layout='wide')\n"
                 "\n"
-                "st.markdown('<div style=\"text-align: center; padding: 1rem 0; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin-bottom: 2rem;\"><h1>🤖 무엇이든 물어보세요!</h1><p>Notion 지식 기반에서 답변을 찾아드립니다 (Claude 3 Haiku + RAG)</p></div>', unsafe_allow_html=True)\n"
+                "st.markdown('<div style=\"text-align: center; padding: 1rem 0; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin-bottom: 2rem;\"><h1>🤖 무엇이든 물어보세요!</h1><p>Notion 지식 기반에서 답변을 찾아드립니다 (검색 방식 비교 데모)</p></div>', unsafe_allow_html=True)\n"
                 "\n"
                 "# AWS 클라이언트 초기화\n"
                 "@st.cache_resource\n"
                 "def get_aws_clients():\n"
                 "    s3 = boto3.client('s3', region_name='ap-northeast-2')\n"
                 "    bedrock = boto3.client('bedrock-runtime', region_name='ap-northeast-2')\n"
-                "    return s3, bedrock\n"
+                "    lambda_client = boto3.client('lambda', region_name='ap-northeast-2')\n"
+                "    return s3, bedrock, lambda_client\n"
                 "\n"
-                "s3_client, bedrock_client = get_aws_clients()\n"
+                "s3_client, bedrock_client, lambda_client = get_aws_clients()\n"
                 "knowledge_base_id = os.getenv('KNOWLEDGE_BASE_ID', 'simple-kb-demo')\n"
+                "opensearch_endpoint = os.getenv('OPENSEARCH_ENDPOINT', '')\n"
+                "vector_lambda_arn = os.getenv('VECTOR_LAMBDA_ARN', '')\n"
                 "\n"
-                "def search_s3_documents(query, bucket_name):\n"
+                "# OpenSearch 클라이언트 초기화\n"
+                "opensearch_client = None\n"
+                "if opensearch_endpoint:\n"
+                "    opensearch_client = OpenSearchClient(opensearch_endpoint)\n"
+                "\n"
+                "                "def search_opensearch_documents(query, search_method='semantic'):\n"
+                "    '''OpenSearch를 사용한 의미 기반 검색'''\n"
+                "    try:\n"
+                "        if not opensearch_client:\n"
+                "            st.error('OpenSearch가 설정되지 않았습니다.')\n"
+                "            return []\n"
+                "        \n"
+                "        if search_method == 'semantic':\n"
+                "            documents = opensearch_client.semantic_search(query, limit=5)\n"
+                "        else:\n"
+                "            documents = opensearch_client.hybrid_search(query, limit=5)\n"
+                "        \n"
+                "        return documents\n"
+                "        \n"
+                "    except Exception as e:\n"
+                "        st.error(f'OpenSearch 검색 오류: {str(e)}')\n"
+                "        return []\n"
+                "\n"\n"
                 "    '''S3에서 Notion 문서 검색'''\n"
                 "    try:\n"
                 "        # S3에서 notion-data/ 폴더의 모든 JSON 파일 나열\n"
@@ -241,11 +360,18 @@ class EcsStack(Stack):
                 "    with st.chat_message('assistant'):\n"
                 "        with st.spinner('S3에서 관련 문서를 검색하고 답변을 생성하고 있습니다... 🤔'):\n"
                 "            try:\n"
-                "                # S3 버킷 이름 (환경변수에서 가져오거나 기본값 사용)\n"
+                "                # S3 버킷 이름\n"
                 "                bucket_name = f'notion-chatbot-data-965037532757-ap-northeast-2'\n"
                 "                \n"
-                "                # S3에서 관련 문서 검색\n"
-                "                documents = search_s3_documents(prompt, bucket_name)\n"
+                "                # 선택된 검색 방식에 따라 문서 검색\n"
+                "                if search_method == 'S3 키워드 검색':\n"
+                "                    documents = search_s3_documents(prompt, bucket_name)\n"
+                "                    search_info = f'🔍 S3 키워드 검색 사용'\n"
+                "                else:\n"
+                "                    documents = search_opensearch_documents(prompt)\n"
+                "                    search_info = f'🧠 OpenSearch 의미 검색 사용'\n"
+                "                \n"
+                "                st.info(search_info)\n"
                 "                \n"
                 "                if documents:\n"
                 "                    # Bedrock으로 RAG 응답 생성\n"
@@ -282,6 +408,20 @@ class EcsStack(Stack):
                 "with st.sidebar:\n"
                 "    st.markdown('## ⚙️ 설정')\n"
                 "    \n"
+                "    # 검색 방식 선택\n"
+                "    st.markdown('### 🔍 검색 방식 선택')\n"
+                "    search_method = st.selectbox(\n"
+                "        '검색 방식을 선택하세요:',\n"
+                "        ['S3 키워드 검색', 'OpenSearch 의미 검색'],\n"
+                "        help='S3: 키워드 매칭 기반, OpenSearch: 의미 기반 벡터 검색'\n"
+                "    )\n"
+                "    \n"
+                "    # 검색 방식별 설명\n"
+                "    if search_method == 'S3 키워드 검색':\n"
+                "        st.info('📝 키워드 매칭 기반 검색\\n- 빠른 속도\\n- 정확한 키워드 일치\\n- 비용 효율적')\n"
+                "    else:\n"
+                "        st.info('🧠 의미 기반 벡터 검색\\n- 문맥 이해\\n- 유사한 의미 검색\\n- 높은 정확도')\n"
+                "    \n"
                 "    # Knowledge Base 정보\n"
                 "    st.markdown('### 🧠 Knowledge Base')\n"
                 "    st.success(f'S3 기반 검색: {knowledge_base_id}')\n"
@@ -290,16 +430,28 @@ class EcsStack(Stack):
                 "        st.session_state.messages = []\n"
                 "        st.rerun()\n"
                 "    \n"
-                "    if st.button('🔄 수동 동기화 실행'):\n"
-                "        try:\n"
-                "            lambda_client = boto3.client('lambda', region_name='ap-northeast-2')\n"
-                "            response = lambda_client.invoke(\n"
-                "                FunctionName='NotionChatbotBedrockStack-NotionSyncFunctionFFED61-DntTQBnmfaiG',\n"
-                "                InvocationType='Event'\n"
-                "            )\n"
-                "            st.success('동기화 작업을 시작했습니다!')\n"
-                "        except Exception as e:\n"
-                "            st.error(f'동기화 실행 실패: {str(e)}')\n"
+                "    if st.button('🔄 데이터 동기화 실행'):\n"
+                "        sync_type = st.radio('동기화 방식:', ['S3만 동기화', 'S3 + OpenSearch 동기화'])\n"
+                "        \n"
+                "        if st.button('동기화 시작'):\n"
+                "            try:\n"
+                "                # S3 동기화\n"
+                "                response = lambda_client.invoke(\n"
+                "                    FunctionName='NotionChatbotBedrockStack-NotionSyncFunctionFFED61-DntTQBnmfaiG',\n"
+                "                    InvocationType='Event'\n"
+                "                )\n"
+                "                st.success('S3 동기화 작업을 시작했습니다!')\n"
+                "                \n"
+                "                # OpenSearch 동기화 (선택된 경우)\n"
+                "                if sync_type == 'S3 + OpenSearch 동기화' and vector_lambda_arn:\n"
+                "                    vector_response = lambda_client.invoke(\n"
+                "                        FunctionName=vector_lambda_arn.split(':')[-1],\n"
+                "                        InvocationType='Event'\n"
+                "                    )\n"
+                "                    st.success('OpenSearch 벡터 인덱싱 작업도 시작했습니다!')\n"
+                "                    \n"
+                "            except Exception as e:\n"
+                "                st.error(f'동기화 실행 실패: {str(e)}')\n"
                 "    \n"
                 "    st.markdown('### 💡 S3 + RAG 방식 특징')\n"
                 "    st.markdown('- Notion 데이터가 S3에 JSON으로 저장됨\\n- 키워드 기반 문서 검색\\n- Claude 3 Haiku로 컨텍스트 기반 답변\\n- 실시간 소스 추적 가능')\n"
@@ -321,7 +473,7 @@ class EcsStack(Stack):
                 "    st.info('수동 동기화 버튼으로 즉시 업데이트 가능합니다.')\n"
                 "\n"
                 "st.markdown('---')\n"
-                "st.markdown('<div style=\"text-align: center; color: #666; padding: 1rem;\"><p>🗂️ S3 기반 문서 검색 + Claude 3 Haiku RAG</p><p>📚 키워드 매칭을 통한 관련 문서 검색</p><p>🔄 1시간마다 Notion 데이터 자동 동기화</p></div>', unsafe_allow_html=True)\n"
+                "st.markdown('<div style=\"text-align: center; color: #666; padding: 1rem;\"><p>🔍 S3 키워드 검색 vs 🧠 OpenSearch 의미 검색 비교 데모</p><p>📚 두 가지 검색 방식의 차이를 직접 체험해보세요</p><p>🔄 1시간마다 Notion 데이터 자동 동기화</p></div>', unsafe_allow_html=True)\n"
                 "EOF\n"
                 "streamlit run app.py --server.port=8501 --server.address=0.0.0.0"
             ]

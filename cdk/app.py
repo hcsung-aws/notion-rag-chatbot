@@ -3,6 +3,7 @@ import aws_cdk as cdk
 from stacks.vpc_stack import VpcStack
 from stacks.secrets_stack import SecretsStack
 from stacks.bedrock_stack import BedrockStack
+from stacks.opensearch_stack import OpenSearchStack
 from stacks.ecs_stack import EcsStack
 
 app = cdk.App()
@@ -19,11 +20,20 @@ vpc_stack = VpcStack(app, "NotionChatbotVpcStack", env=env)
 # Secrets 스택
 secrets_stack = SecretsStack(app, "NotionChatbotSecretsStack", env=env)
 
-# Bedrock 스택 (새로 추가)
+# Bedrock 스택 (S3 기반)
 bedrock_stack = BedrockStack(
     app, 
     "NotionChatbotBedrockStack",
     secrets=secrets_stack.secrets,
+    env=env
+)
+
+# OpenSearch 스택 (벡터 검색 기반)
+opensearch_stack = OpenSearchStack(
+    app,
+    "NotionChatbotOpenSearchStack",
+    secrets=secrets_stack.secrets,
+    data_bucket=bedrock_stack.data_bucket,
     env=env
 )
 
@@ -35,6 +45,8 @@ ecs_stack = EcsStack(
     secrets=secrets_stack.secrets,
     knowledge_base_id=bedrock_stack.knowledge_base_id,
     data_bucket=bedrock_stack.data_bucket,
+    opensearch_endpoint=opensearch_stack.vector_collection.attr_collection_endpoint,
+    vector_lambda_arn=opensearch_stack.vector_lambda.function_arn,
     env=env
 )
 
