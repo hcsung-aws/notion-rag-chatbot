@@ -67,7 +67,7 @@ class EcsStack(Stack):
                     "bedrock:RetrieveAndGenerate"
                 ],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
                     f"arn:aws:bedrock:{self.region}:{self.account}:knowledge-base/{knowledge_base_id}"
                 ]
             )
@@ -121,7 +121,7 @@ class EcsStack(Stack):
                 "\n"
                 "st.set_page_config(page_title='무엇이든 물어보세요! 🤖', page_icon='🤖', layout='wide')\n"
                 "\n"
-                "st.markdown('<div style=\"text-align: center; padding: 1rem 0; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin-bottom: 2rem;\"><h1>🤖 무엇이든 물어보세요!</h1><p>Notion 지식 기반에서 답변을 찾아드립니다 (S3 + RAG 방식)</p></div>', unsafe_allow_html=True)\n"
+                "st.markdown('<div style=\"text-align: center; padding: 1rem 0; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin-bottom: 2rem;\"><h1>🤖 무엇이든 물어보세요!</h1><p>Notion 지식 기반에서 답변을 찾아드립니다 (Claude 3 Haiku + RAG)</p></div>', unsafe_allow_html=True)\n"
                 "\n"
                 "# AWS 클라이언트 초기화\n"
                 "@st.cache_resource\n"
@@ -203,7 +203,7 @@ class EcsStack(Stack):
                 "        }\n"
                 "        \n"
                 "        response = bedrock_client.invoke_model(\n"
-                "            modelId='anthropic.claude-3-5-sonnet-20240620-v1:0',\n"
+                "            modelId='anthropic.claude-3-haiku-20240307-v1:0',\n"
                 "            body=json.dumps(body)\n"
                 "        )\n"
                 "        \n"

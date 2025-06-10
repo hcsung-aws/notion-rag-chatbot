@@ -1,11 +1,11 @@
 # 🤖 Notion RAG Chatbot
 
-Notion 워크스페이스의 내용을 기반으로 질문에 답변하는 AI 챗봇입니다. AWS CDK로 구현되었으며, Claude 3.5 Sonnet과 RAG(Retrieval-Augmented Generation) 방식을 사용합니다.
+Notion 워크스페이스의 내용을 기반으로 질문에 답변하는 AI 챗봇입니다. AWS CDK로 구현되었으며, Claude 3 Haiku와 RAG(Retrieval-Augmented Generation) 방식을 사용합니다.
 
 ## 🌟 주요 기능
 
 - 🔍 **실시간 Notion 검색**: S3 기반의 효율적인 문서 검색
-- 🤖 **AI 기반 답변**: Claude 3.5 Sonnet을 활용한 정확한 답변 생성
+- 🤖 **AI 기반 답변**: Claude 3 Haiku를 활용한 빠르고 경제적인 답변 생성
 - 📚 **소스 추적**: 답변의 근거가 된 Notion 문서 링크 제공
 - 🔄 **자동 동기화**: 1시간마다 Notion 데이터 자동 업데이트
 - 💬 **대화 히스토리**: 이전 대화 내용 유지 및 관리
@@ -147,10 +147,10 @@ notion-rag-chatbot/
 | 서비스 | 예상 비용 | 비고 |
 |--------|-----------|------|
 | ECS Fargate | $25 | 1 vCPU, 2GB RAM |
-| Claude 3.5 Sonnet | $30-100 | 사용량 기준 |
+| Claude 3 Haiku | $5-20 | 사용량 기준 |
 | S3 + Lambda | $5 | 기본 사용량 |
 | 기타 AWS 서비스 | $10 | CloudWatch, ALB 등 |
-| **총 예상 비용** | $70-140 | 사용량에 따라 변동 |
+| **총 예상 비용** | $45-60 | 사용량에 따라 변동 |
 
 ## 🔒 보안
 
