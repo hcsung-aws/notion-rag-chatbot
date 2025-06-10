@@ -64,7 +64,7 @@ graph TB
 - Notion Integration 토큰
 
 ### 빠른 시작
-\`\`\`bash
+```bash
 # 1. 저장소 클론
 git clone https://github.com/yourusername/notion-rag-chatbot.git
 cd notion-rag-chatbot
@@ -74,10 +74,10 @@ export NOTION_TOKEN="your_notion_token"
 
 # 3. 원클릭 배포
 ./deploy.sh
-\`\`\`
+```
 
 ### 수동 배포
-\`\`\`bash
+```bash
 # 1. CDK 의존성 설치
 cd cdk
 pip install -r requirements.txt
@@ -90,10 +90,10 @@ cdk deploy --all
 aws secretsmanager put-secret-value \
   --secret-id notion-chatbot/notion-token \
   --secret-string "{\"token\":\"your_notion_token\"}"
-\`\`\`
+```
 
 ## 📁 프로젝트 구조
-\`\`\`
+```
 notion-rag-chatbot/
 ├── README.md
 ├── deploy.sh                     # 원클릭 배포 스크립트
@@ -119,7 +119,7 @@ notion-rag-chatbot/
 └── docs/                       # 문서
     ├── deployment.md          # 상세 배포 가이드
     └── user-guide.md         # 사용자 가이드
-\`\`\`
+```
 
 ## ⚙️ 기술 스택
 
@@ -177,21 +177,21 @@ notion-rag-chatbot/
 ## 🛠️ 커스터마이징
 
 ### 환경 변수
-\`\`\`bash
+```bash
 # .env 파일
 NOTION_TOKEN=your_token
 AWS_REGION=ap-northeast-2
 MAX_TOKENS=4000
 TEMPERATURE=0.1
-\`\`\`
+```
 
 ### 설정 파일
-\`\`\`python
+```python
 # config.py
 SEARCH_LIMIT = 5
 CACHE_TTL = 300
 AUTO_SYNC_INTERVAL = "1 hour"
-\`\`\`
+```
 
 ## 🤝 기여하기
 
