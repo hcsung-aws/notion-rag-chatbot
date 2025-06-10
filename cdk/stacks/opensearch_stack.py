@@ -135,7 +135,7 @@ class OpenSearchStack(Stack):
                     "bedrock:InvokeModel"
                 ],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v1"
+                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v2:0"
                 ]
             )
         )
@@ -251,7 +251,7 @@ def generate_embedding(bedrock_client, text):
     '''Bedrock Titan Embedding으로 벡터 생성'''
     try:
         response = bedrock_client.invoke_model(
-            modelId='amazon.titan-embed-text-v1',
+            modelId='amazon.titan-embed-text-v2:0',
             body=json.dumps({
                 'inputText': text[:8000]  # Titan 모델 제한
             })

@@ -62,7 +62,7 @@ class EcsStack(Stack):
                     "bedrock:InvokeModel"
                 ],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v1"
+                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v2:0"
                 ]
             )
         )
@@ -174,7 +174,7 @@ class OpenSearchClient:
     def generate_embedding(self, text: str) -> List[float]:
         try:
             response = self.bedrock_client.invoke_model(
-                modelId='amazon.titan-embed-text-v1',
+                modelId='amazon.titan-embed-text-v2:0',
                 body=json.dumps({'inputText': text[:8000]})
             )
             response_body = json.loads(response['body'].read())
