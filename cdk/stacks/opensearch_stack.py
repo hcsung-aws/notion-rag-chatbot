@@ -107,7 +107,9 @@ class OpenSearchStack(Stack):
                         }
                     ],
                     "Principal": [
-                        self.opensearch_service_role.role_arn
+                        self.opensearch_service_role.role_arn,
+                        self.vector_lambda_role.role_arn,
+                        f"arn:aws:iam::{self.account}:root"
                     ]
                 }
             ])
@@ -172,8 +174,7 @@ class OpenSearchStack(Stack):
             code=lambda_.Code.from_inline("""
 import json
 import boto3
-import requests
-from requests.auth import HTTPBasicAuth
+import urllib3
 import os
 import time
 
@@ -209,34 +210,45 @@ def handler(event, context):
         opensearch_endpoint = os.environ['OPENSEARCH_ENDPOINT']
         index_name = os.environ['INDEX_NAME']
         
+        # HTTP 클라이언트 초기화
+        http = urllib3.PoolManager()
+        
         # 인덱스 생성 (존재하지 않는 경우)
-        create_index_if_not_exists(opensearch_endpoint, index_name)
+        create_index_if_not_exists(http, opensearch_endpoint, index_name)
         
         # 각 문서에 대해 임베딩 생성 및 인덱싱
+        indexed_count = 0
         for doc in documents:
-            # 문서 텍스트 준비
-            text_content = f"{doc.get('title', '')} {doc.get('content', '')}"
-            
-            # Bedrock으로 임베딩 생성
-            embedding = generate_embedding(bedrock, text_content)
-            
-            # OpenSearch에 문서 인덱싱
-            doc_with_embedding = {
-                'id': doc.get('id'),
-                'title': doc.get('title'),
-                'content': doc.get('content'),
-                'url': doc.get('url'),
-                'embedding': embedding,
-                'metadata': doc.get('metadata', {})
-            }
-            
-            index_document(opensearch_endpoint, index_name, doc['id'], doc_with_embedding)
+            try:
+                # 문서 텍스트 준비
+                text_content = f"{doc.get('title', '')} {doc.get('content', '')}"
+                
+                # Bedrock으로 임베딩 생성
+                embedding = generate_embedding(bedrock, text_content)
+                
+                if embedding:
+                    # OpenSearch에 문서 인덱싱
+                    doc_with_embedding = {
+                        'id': doc.get('id'),
+                        'title': doc.get('title'),
+                        'content': doc.get('content'),
+                        'url': doc.get('url'),
+                        'embedding': embedding,
+                        'metadata': doc.get('metadata', {})
+                    }
+                    
+                    if index_document(http, opensearch_endpoint, index_name, doc['id'], doc_with_embedding):
+                        indexed_count += 1
+                        
+            except Exception as e:
+                print(f"Error processing document {doc.get('id', 'unknown')}: {str(e)}")
+                continue
             
         return {
             'statusCode': 200,
             'body': json.dumps({
                 'message': f'Successfully processed {len(documents)} documents',
-                'indexed_count': len(documents)
+                'indexed_count': indexed_count
             })
         }
         
@@ -264,7 +276,7 @@ def generate_embedding(bedrock_client, text):
         print(f"Embedding generation error: {str(e)}")
         return []
 
-def create_index_if_not_exists(endpoint, index_name):
+def create_index_if_not_exists(http, endpoint, index_name):
     '''OpenSearch 인덱스 생성'''
     try:
         index_body = {
@@ -282,7 +294,7 @@ def create_index_if_not_exists(endpoint, index_name):
                     "url": {"type": "keyword"},
                     "embedding": {
                         "type": "knn_vector",
-                        "dimension": 1536,
+                        "dimension": 1024,
                         "method": {
                             "name": "hnsw",
                             "space_type": "cosinesimil",
@@ -294,36 +306,41 @@ def create_index_if_not_exists(endpoint, index_name):
             }
         }
         
-        response = requests.put(
+        response = http.request(
+            'PUT',
             f"{endpoint}/{index_name}",
-            json=index_body,
+            body=json.dumps(index_body),
             headers={'Content-Type': 'application/json'}
         )
         
-        if response.status_code in [200, 400]:  # 400은 이미 존재하는 경우
+        if response.status in [200, 400]:  # 400은 이미 존재하는 경우
             print(f"Index {index_name} ready")
         else:
-            print(f"Index creation failed: {response.text}")
+            print(f"Index creation failed: {response.data.decode()}")
             
     except Exception as e:
         print(f"Index creation error: {str(e)}")
 
-def index_document(endpoint, index_name, doc_id, document):
+def index_document(http, endpoint, index_name, doc_id, document):
     '''OpenSearch에 문서 인덱싱'''
     try:
-        response = requests.put(
+        response = http.request(
+            'PUT',
             f"{endpoint}/{index_name}/_doc/{doc_id}",
-            json=document,
+            body=json.dumps(document),
             headers={'Content-Type': 'application/json'}
         )
         
-        if response.status_code in [200, 201]:
+        if response.status in [200, 201]:
             print(f"Document {doc_id} indexed successfully")
+            return True
         else:
-            print(f"Document indexing failed: {response.text}")
+            print(f"Document indexing failed: {response.data.decode()}")
+            return False
             
     except Exception as e:
         print(f"Document indexing error: {str(e)}")
+        return False
 """)
         )
 
