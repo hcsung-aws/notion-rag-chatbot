@@ -115,7 +115,7 @@ class OpenSearchStack(Stack):
         for secret in secrets.values():
             secret.grant_read(self.vector_lambda_role)
 
-        # 5. 데이터 접근 정책 (KnowledgeBase 서비스 포함)
+        # 5. 데이터 접근 정책
         data_access_policy = opensearchserverless.CfnAccessPolicy(
             self, "NotionChatbotDataAccessPolicy",
             name="notion-data-access-policy",
@@ -149,8 +149,7 @@ class OpenSearchStack(Stack):
                     "Principal": [
                         self.opensearch_service_role.role_arn,
                         self.vector_lambda_role.role_arn,
-                        f"arn:aws:iam::{self.account}:root",
-                        "arn:aws:iam::*:role/service-role/AmazonBedrockExecutionRoleForKnowledgeBase*"
+                        f"arn:aws:iam::{self.account}:root"
                     ]
                 }
             ])

@@ -49,13 +49,13 @@ class KnowledgeBaseStack(Stack):
             )
         )
 
-        # Bedrock KnowledgeBase 생성 (CloudFormation 직접 사용)
+        # Bedrock KnowledgeBase 생성
         self.knowledge_base = CfnResource(
             self, "NotionKnowledgeBase",
             type="AWS::Bedrock::KnowledgeBase",
             properties={
-                "Name": "notion-chatbot-kb",
-                "Description": "Notion RAG Chatbot Knowledge Base with OpenSearch Serverless",
+                "Name": "notion-opensearch-kb",
+                "Description": "Notion RAG Chatbot Knowledge Base with OpenSearch Serverless Vector Store",
                 "RoleArn": self.kb_service_role.role_arn,
                 "KnowledgeBaseConfiguration": {
                     "Type": "VECTOR",
@@ -125,4 +125,10 @@ class KnowledgeBaseStack(Stack):
             self, "KnowledgeBaseArn",
             value=self.knowledge_base.get_att("KnowledgeBaseArn").to_string(),
             description="Bedrock Knowledge Base ARN"
+        )
+
+        CfnOutput(
+            self, "KnowledgeBaseServiceRoleArn",
+            value=self.kb_service_role.role_arn,
+            description="Knowledge Base Service Role ARN"
         )

@@ -38,7 +38,7 @@ opensearch_stack = OpenSearchStack(
     env=env
 )
 
-# KnowledgeBase 스택 (S3 + OpenSearch)
+# 새로운 KnowledgeBase 스택 (S3 + OpenSearch)
 knowledgebase_stack = KnowledgeBaseStack(
     app,
     "NotionChatbotKnowledgeBaseStack",
@@ -47,13 +47,13 @@ knowledgebase_stack = KnowledgeBaseStack(
     env=env
 )
 
-# ECS 스택
+# ECS 스택 (기존 KnowledgeBase 사용)
 ecs_stack = EcsStack(
     app, 
     "NotionChatbotEcsStack",
     vpc=vpc_stack.vpc,
     secrets=secrets_stack.secrets,
-    knowledge_base_id=knowledgebase_stack.knowledge_base.ref,
+    knowledge_base_id=bedrock_stack.knowledge_base_id,
     data_bucket=bedrock_stack.data_bucket,
     opensearch_endpoint=opensearch_stack.vector_collection.attr_collection_endpoint,
     vector_lambda_arn=opensearch_stack.vector_lambda.function_arn,
