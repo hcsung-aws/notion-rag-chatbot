@@ -2,7 +2,6 @@ from aws_cdk import (
     Stack,
     Duration,
     aws_iam as iam,
-    aws_opensearchserverless as opensearchserverless,
     CfnOutput,
     CfnResource
 )
@@ -16,6 +15,7 @@ class KnowledgeBaseStack(Stack):
         # Bedrock KnowledgeBase 서비스 역할
         self.kb_service_role = iam.Role(
             self, "KnowledgeBaseServiceRole",
+            role_name="AmazonBedrockExecutionRoleForKnowledgeBase_NotionChatbot",
             assumed_by=iam.ServicePrincipal("bedrock.amazonaws.com"),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name("AmazonBedrockFullAccess")
@@ -49,45 +49,6 @@ class KnowledgeBaseStack(Stack):
             )
         )
 
-        # OpenSearch 데이터 접근 정책 업데이트 (KnowledgeBase 역할 추가)
-        kb_data_access_policy = opensearchserverless.CfnAccessPolicy(
-            self, "KnowledgeBaseDataAccessPolicy",
-            name="kb-data-access-policy",
-            type="data",
-            policy=json.dumps([
-                {
-                    "Rules": [
-                        {
-                            "ResourceType": "collection",
-                            "Resource": ["collection/notion-chatbot-vectors"],
-                            "Permission": [
-                                "aoss:CreateCollectionItems",
-                                "aoss:DeleteCollectionItems",
-                                "aoss:UpdateCollectionItems",
-                                "aoss:DescribeCollectionItems"
-                            ]
-                        },
-                        {
-                            "ResourceType": "index",
-                            "Resource": ["index/notion-chatbot-vectors/*"],
-                            "Permission": [
-                                "aoss:CreateIndex",
-                                "aoss:DeleteIndex",
-                                "aoss:UpdateIndex",
-                                "aoss:DescribeIndex",
-                                "aoss:ReadDocument",
-                                "aoss:WriteDocument"
-                            ]
-                        }
-                    ],
-                    "Principal": [
-                        self.kb_service_role.role_arn,
-                        f"arn:aws:iam::{self.account}:root"
-                    ]
-                }
-            ])
-        )
-
         # Bedrock KnowledgeBase 생성 (CloudFormation 직접 사용)
         self.knowledge_base = CfnResource(
             self, "NotionKnowledgeBase",
@@ -116,9 +77,6 @@ class KnowledgeBaseStack(Stack):
                 }
             }
         )
-
-        # 의존성 설정
-        self.knowledge_base.node.add_dependency(kb_data_access_policy)
 
         # S3 데이터 소스 생성
         self.data_source = CfnResource(
