@@ -75,6 +75,46 @@ class OpenSearchStack(Stack):
             ]
         )
 
+        # 6. 벡터 임베딩 및 인덱싱을 위한 Lambda 함수 역할
+        self.vector_lambda_role = iam.Role(
+            self, "VectorLambdaRole",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+            ]
+        )
+
+        # S3 접근 권한
+        data_bucket.grant_read(self.vector_lambda_role)
+
+        # Bedrock 접근 권한 (임베딩 모델용)
+        self.vector_lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "bedrock:InvokeModel"
+                ],
+                resources=[
+                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v2:0"
+                ]
+            )
+        )
+
+        # OpenSearch Serverless 접근 권한
+        self.vector_lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "aoss:APIAccessAll"
+                ],
+                resources=[self.vector_collection.attr_arn]
+            )
+        )
+
+        # Secrets Manager 접근 권한
+        for secret in secrets.values():
+            secret.grant_read(self.vector_lambda_role)
+
         # 5. 데이터 접근 정책
         data_access_policy = opensearchserverless.CfnAccessPolicy(
             self, "NotionChatbotDataAccessPolicy",
@@ -117,46 +157,6 @@ class OpenSearchStack(Stack):
 
         data_access_policy.add_dependency(self.vector_collection)
 
-        # 6. 벡터 임베딩 및 인덱싱을 위한 Lambda 함수 역할
-        self.vector_lambda_role = iam.Role(
-            self, "VectorLambdaRole",
-            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
-            ]
-        )
-
-        # S3 접근 권한
-        data_bucket.grant_read(self.vector_lambda_role)
-
-        # Bedrock 접근 권한 (임베딩 모델용)
-        self.vector_lambda_role.add_to_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    "bedrock:InvokeModel"
-                ],
-                resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v2:0"
-                ]
-            )
-        )
-
-        # OpenSearch Serverless 접근 권한
-        self.vector_lambda_role.add_to_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    "aoss:APIAccessAll"
-                ],
-                resources=[self.vector_collection.attr_arn]
-            )
-        )
-
-        # Secrets Manager 접근 권한
-        for secret in secrets.values():
-            secret.grant_read(self.vector_lambda_role)
-
         # 7. 벡터 임베딩 Lambda 함수
         self.vector_lambda = lambda_.Function(
             self, "VectorEmbeddingFunction",
@@ -177,6 +177,9 @@ import boto3
 import urllib3
 import os
 import time
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+from urllib.parse import urlparse
 
 def handler(event, context):
     print("Starting vector embedding process...")
@@ -184,6 +187,8 @@ def handler(event, context):
     # AWS 클라이언트 초기화
     s3 = boto3.client('s3')
     bedrock = boto3.client('bedrock-runtime')
+    session = boto3.Session()
+    credentials = session.get_credentials()
     
     try:
         # S3에서 Notion 데이터 가져오기
@@ -209,12 +214,10 @@ def handler(event, context):
         # OpenSearch 엔드포인트 설정
         opensearch_endpoint = os.environ['OPENSEARCH_ENDPOINT']
         index_name = os.environ['INDEX_NAME']
-        
-        # HTTP 클라이언트 초기화
-        http = urllib3.PoolManager()
+        region = os.environ.get('AWS_REGION', 'ap-northeast-2')
         
         # 인덱스 생성 (존재하지 않는 경우)
-        create_index_if_not_exists(http, opensearch_endpoint, index_name)
+        create_index_if_not_exists(opensearch_endpoint, index_name, credentials, region)
         
         # 각 문서에 대해 임베딩 생성 및 인덱싱
         indexed_count = 0
@@ -237,7 +240,7 @@ def handler(event, context):
                         'metadata': doc.get('metadata', {})
                     }
                     
-                    if index_document(http, opensearch_endpoint, index_name, doc['id'], doc_with_embedding):
+                    if index_document(opensearch_endpoint, index_name, doc['id'], doc_with_embedding, credentials, region):
                         indexed_count += 1
                         
             except Exception as e:
@@ -276,7 +279,14 @@ def generate_embedding(bedrock_client, text):
         print(f"Embedding generation error: {str(e)}")
         return []
 
-def create_index_if_not_exists(http, endpoint, index_name):
+def sign_request(method, url, body, credentials, region):
+    '''AWS SigV4로 요청 서명'''
+    parsed_url = urlparse(url)
+    request = AWSRequest(method=method, url=url, data=body, headers={'Content-Type': 'application/json'})
+    SigV4Auth(credentials, 'aoss', region).add_auth(request)
+    return request
+
+def create_index_if_not_exists(endpoint, index_name, credentials, region):
     '''OpenSearch 인덱스 생성'''
     try:
         index_body = {
@@ -306,11 +316,16 @@ def create_index_if_not_exists(http, endpoint, index_name):
             }
         }
         
-        response = http.request(
-            'PUT',
-            f"{endpoint}/{index_name}",
-            body=json.dumps(index_body),
-            headers={'Content-Type': 'application/json'}
+        url = f"{endpoint}/{index_name}"
+        body = json.dumps(index_body)
+        signed_request = sign_request('PUT', url, body, credentials, region)
+        
+        http = urllib3.PoolManager()
+        response = http.urlopen(
+            signed_request.method,
+            signed_request.url,
+            body=signed_request.body,
+            headers=dict(signed_request.headers)
         )
         
         if response.status in [200, 400]:  # 400은 이미 존재하는 경우
@@ -321,14 +336,19 @@ def create_index_if_not_exists(http, endpoint, index_name):
     except Exception as e:
         print(f"Index creation error: {str(e)}")
 
-def index_document(http, endpoint, index_name, doc_id, document):
+def index_document(endpoint, index_name, doc_id, document, credentials, region):
     '''OpenSearch에 문서 인덱싱'''
     try:
-        response = http.request(
-            'PUT',
-            f"{endpoint}/{index_name}/_doc/{doc_id}",
-            body=json.dumps(document),
-            headers={'Content-Type': 'application/json'}
+        url = f"{endpoint}/{index_name}/_doc/{doc_id}"
+        body = json.dumps(document)
+        signed_request = sign_request('PUT', url, body, credentials, region)
+        
+        http = urllib3.PoolManager()
+        response = http.urlopen(
+            signed_request.method,
+            signed_request.url,
+            body=signed_request.body,
+            headers=dict(signed_request.headers)
         )
         
         if response.status in [200, 201]:
