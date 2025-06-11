@@ -1,10 +1,10 @@
 from aws_cdk import (
     Stack,
     Duration,
-    aws_bedrock as bedrock,
     aws_iam as iam,
     aws_opensearchserverless as opensearchserverless,
-    CfnOutput
+    CfnOutput,
+    CfnResource
 )
 from constructs import Construct
 import json
@@ -88,74 +88,83 @@ class KnowledgeBaseStack(Stack):
             ])
         )
 
-        # Bedrock KnowledgeBase 생성
-        self.knowledge_base = bedrock.CfnKnowledgeBase(
+        # Bedrock KnowledgeBase 생성 (CloudFormation 직접 사용)
+        self.knowledge_base = CfnResource(
             self, "NotionKnowledgeBase",
-            name="notion-chatbot-kb",
-            description="Notion RAG Chatbot Knowledge Base with OpenSearch Serverless",
-            role_arn=self.kb_service_role.role_arn,
-            knowledge_base_configuration=bedrock.CfnKnowledgeBase.KnowledgeBaseConfigurationProperty(
-                type="VECTOR",
-                vector_knowledge_base_configuration=bedrock.CfnKnowledgeBase.VectorKnowledgeBaseConfigurationProperty(
-                    embedding_model_arn=f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v2:0"
-                )
-            ),
-            storage_configuration=bedrock.CfnKnowledgeBase.StorageConfigurationProperty(
-                type="OPENSEARCH_SERVERLESS",
-                opensearch_serverless_configuration=bedrock.CfnKnowledgeBase.OpenSearchServerlessConfigurationProperty(
-                    collection_arn=opensearch_collection.attr_arn,
-                    vector_index_name="notion-kb-index",
-                    field_mapping=bedrock.CfnKnowledgeBase.OpenSearchServerlessFieldMappingProperty(
-                        vector_field="embedding",
-                        text_field="content",
-                        metadata_field="metadata"
-                    )
-                )
-            )
+            type="AWS::Bedrock::KnowledgeBase",
+            properties={
+                "Name": "notion-chatbot-kb",
+                "Description": "Notion RAG Chatbot Knowledge Base with OpenSearch Serverless",
+                "RoleArn": self.kb_service_role.role_arn,
+                "KnowledgeBaseConfiguration": {
+                    "Type": "VECTOR",
+                    "VectorKnowledgeBaseConfiguration": {
+                        "EmbeddingModelArn": f"arn:aws:bedrock:{self.region}::foundation-model/amazon.titan-embed-text-v2:0"
+                    }
+                },
+                "StorageConfiguration": {
+                    "Type": "OPENSEARCH_SERVERLESS",
+                    "OpensearchServerlessConfiguration": {
+                        "CollectionArn": opensearch_collection.attr_arn,
+                        "VectorIndexName": "notion-kb-index",
+                        "FieldMapping": {
+                            "VectorField": "embedding",
+                            "TextField": "content",
+                            "MetadataField": "metadata"
+                        }
+                    }
+                }
+            }
         )
 
         # 의존성 설정
-        self.knowledge_base.add_dependency(kb_data_access_policy)
+        self.knowledge_base.node.add_dependency(kb_data_access_policy)
 
         # S3 데이터 소스 생성
-        self.data_source = bedrock.CfnDataSource(
+        self.data_source = CfnResource(
             self, "NotionDataSource",
-            name="notion-s3-data-source",
-            description="Notion data from S3 bucket",
-            knowledge_base_id=self.knowledge_base.attr_knowledge_base_id,
-            data_source_configuration=bedrock.CfnDataSource.DataSourceConfigurationProperty(
-                type="S3",
-                s3_configuration=bedrock.CfnDataSource.S3DataSourceConfigurationProperty(
-                    bucket_arn=data_bucket.bucket_arn,
-                    inclusion_prefixes=["notion-data/"]
-                )
-            ),
-            vector_ingestion_configuration=bedrock.CfnDataSource.VectorIngestionConfigurationProperty(
-                chunking_configuration=bedrock.CfnDataSource.ChunkingConfigurationProperty(
-                    chunking_strategy="FIXED_SIZE",
-                    fixed_size_chunking_configuration=bedrock.CfnDataSource.FixedSizeChunkingConfigurationProperty(
-                        max_tokens=512,
-                        overlap_percentage=20
-                    )
-                )
-            )
+            type="AWS::Bedrock::DataSource",
+            properties={
+                "Name": "notion-s3-data-source",
+                "Description": "Notion data from S3 bucket",
+                "KnowledgeBaseId": self.knowledge_base.ref,
+                "DataSourceConfiguration": {
+                    "Type": "S3",
+                    "S3Configuration": {
+                        "BucketArn": data_bucket.bucket_arn,
+                        "InclusionPrefixes": ["notion-data/"]
+                    }
+                },
+                "VectorIngestionConfiguration": {
+                    "ChunkingConfiguration": {
+                        "ChunkingStrategy": "FIXED_SIZE",
+                        "FixedSizeChunkingConfiguration": {
+                            "MaxTokens": 512,
+                            "OverlapPercentage": 20
+                        }
+                    }
+                }
+            }
         )
+
+        # 의존성 설정
+        self.data_source.node.add_dependency(self.knowledge_base)
 
         # Outputs
         CfnOutput(
             self, "KnowledgeBaseId",
-            value=self.knowledge_base.attr_knowledge_base_id,
+            value=self.knowledge_base.ref,
             description="Bedrock Knowledge Base ID"
         )
 
         CfnOutput(
             self, "DataSourceId", 
-            value=self.data_source.attr_data_source_id,
+            value=self.data_source.ref,
             description="Bedrock Data Source ID"
         )
 
         CfnOutput(
             self, "KnowledgeBaseArn",
-            value=self.knowledge_base.attr_knowledge_base_arn,
+            value=self.knowledge_base.get_att("KnowledgeBaseArn").to_string(),
             description="Bedrock Knowledge Base ARN"
         )
