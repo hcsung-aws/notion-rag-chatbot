@@ -197,6 +197,64 @@ with st.sidebar:
     else:
         st.info('📝 S3 키워드 검색\n- 직접 키워드 매칭\n- 빠른 속도\n- 비용 효율적')
     
+    # 동기화 상태 확인 버튼
+    if st.button('📊 KnowledgeBase 동기화 상태 확인'):
+        try:
+            with st.spinner('동기화 상태 확인 중...'):
+                # 최근 ingestion job 상태 확인
+                jobs_response = bedrock_agent_client.list_ingestion_jobs(
+                    knowledgeBaseId=knowledge_base_id,
+                    dataSourceId='X1FS4XS5HU',
+                    maxResults=5
+                )
+                
+                if jobs_response.get('ingestionJobSummaries'):
+                    latest_job = jobs_response['ingestionJobSummaries'][0]
+                    status = latest_job['status']
+                    job_id = latest_job['ingestionJobId']
+                    updated_at = latest_job['updatedAt']
+                    
+                    # 상세 정보 가져오기
+                    job_detail = bedrock_agent_client.get_ingestion_job(
+                        knowledgeBaseId=knowledge_base_id,
+                        dataSourceId='X1FS4XS5HU',
+                        ingestionJobId=job_id
+                    )
+                    
+                    stats = job_detail['ingestionJob']['statistics']
+                    
+                    # 상태에 따른 아이콘과 색상
+                    if status == 'COMPLETE':
+                        st.success(f'✅ **동기화 완료** (Job ID: {job_id})')
+                    elif status == 'IN_PROGRESS' or status == 'STARTING':
+                        st.info(f'🔄 **동기화 진행 중** (Job ID: {job_id})')
+                    elif status == 'FAILED':
+                        st.error(f'❌ **동기화 실패** (Job ID: {job_id})')
+                    else:
+                        st.warning(f'⚠️ **상태: {status}** (Job ID: {job_id})')
+                    
+                    # 통계 정보 표시
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("스캔된 문서", stats.get('numberOfDocumentsScanned', 0))
+                    with col2:
+                        st.metric("인덱싱된 문서", stats.get('numberOfNewDocumentsIndexed', 0))
+                    with col3:
+                        st.metric("실패한 문서", stats.get('numberOfDocumentsFailed', 0))
+                    
+                    st.caption(f"마지막 업데이트: {updated_at}")
+                    
+                    # 실패한 경우 실패 이유 표시
+                    if status == 'FAILED' and 'failureReasons' in job_detail['ingestionJob']:
+                        st.error("실패 이유:")
+                        for reason in job_detail['ingestionJob']['failureReasons']:
+                            st.code(reason)
+                else:
+                    st.info('동기화 작업 기록이 없습니다.')
+                    
+        except Exception as e:
+            st.error(f'상태 확인 실패: {str(e)}')
+    
     # Knowledge Base 정보
     st.markdown('### 🧠 Knowledge Base')
     st.success(f'Knowledge Base ID: {knowledge_base_id}')
@@ -207,16 +265,26 @@ with st.sidebar:
     
     if st.button('🔄 데이터 동기화'):
         try:
-            # S3 동기화
-            response = lambda_client.invoke(
-                FunctionName='NotionChatbotBedrockStack-NotionSyncFunctionFFED61-DntTQBnmfaiG',
-                InvocationType='Event'
-            )
-            st.success('S3 동기화 작업을 시작했습니다!')
-            st.info('KnowledgeBase는 자동으로 S3 변경사항을 감지합니다.')
+            with st.spinner('데이터 동기화 중...'):
+                # 1. S3 동기화 (Notion → S3)
+                response = lambda_client.invoke(
+                    FunctionName='NotionChatbotBedrockStack-NotionSyncFunctionFFED61-DntTQBnmfaiG',
+                    InvocationType='Event'
+                )
+                st.success('✅ S3 동기화 작업을 시작했습니다!')
+                
+                # 2. KnowledgeBase 동기화 (S3 → KnowledgeBase)
+                kb_response = bedrock_agent_client.start_ingestion_job(
+                    knowledgeBaseId=knowledge_base_id,
+                    dataSourceId='X1FS4XS5HU'  # 현재 사용 중인 데이터 소스 ID
+                )
+                
+                ingestion_job_id = kb_response['ingestionJob']['ingestionJobId']
+                st.success(f'✅ KnowledgeBase 동기화 작업을 시작했습니다! (Job ID: {ingestion_job_id})')
+                st.info('💡 동기화 완료까지 1-2분 정도 소요될 수 있습니다.')
                 
         except Exception as e:
-            st.error(f'동기화 실행 실패: {str(e)}')
+            st.error(f'❌ 동기화 실행 실패: {str(e)}')
 
 # 이전 메시지들 표시
 for message in st.session_state.messages:
