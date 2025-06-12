@@ -54,13 +54,29 @@ def search_knowledgebase(query, knowledge_base_id):
         st.error(f'KnowledgeBase 검색 오류: {str(e)}')
         return []
 
-def generate_knowledgebase_response(query, knowledge_base_id):
-    """KnowledgeBase를 사용한 RAG 응답 생성 + 참고 문서 정보"""
+def generate_knowledgebase_response_with_context(query, knowledge_base_id, conversation_history):
+    """KnowledgeBase를 사용한 RAG 응답 생성 + 참고 문서 정보 + 대화 컨텍스트"""
     try:
+        # 대화 히스토리를 포함한 컨텍스트 구성
+        context_query = query
+        if conversation_history:
+            # 최근 3개 대화만 컨텍스트로 사용 (토큰 제한 고려)
+            recent_history = conversation_history[-6:]  # 사용자-어시스턴트 쌍 3개
+            context_parts = []
+            
+            for i in range(0, len(recent_history), 2):
+                if i + 1 < len(recent_history):
+                    user_msg = recent_history[i]['content']
+                    assistant_msg = recent_history[i + 1]['content']
+                    context_parts.append(f"이전 질문: {user_msg}\n이전 답변: {assistant_msg}")
+            
+            if context_parts:
+                context_query = f"이전 대화 내용:\n{chr(10).join(context_parts)}\n\n현재 질문: {query}"
+        
         # 1. retrieve_and_generate로 답변 생성 (실제 KnowledgeBase 사용)
         rag_response = bedrock_agent_client.retrieve_and_generate(
             input={
-                'text': query
+                'text': context_query
             },
             retrieveAndGenerateConfiguration={
                 'type': 'KNOWLEDGE_BASE',
@@ -79,7 +95,7 @@ def generate_knowledgebase_response(query, knowledge_base_id):
             retrieve_response = bedrock_agent_client.retrieve(
                 knowledgeBaseId=knowledge_base_id,
                 retrievalQuery={
-                    'text': query
+                    'text': query  # 원본 질문으로 검색 (컨텍스트 제외)
                 },
                 retrievalConfiguration={
                     'vectorSearchConfiguration': {
@@ -102,6 +118,66 @@ def generate_knowledgebase_response(query, knowledge_base_id):
                 citations.append(citation)
         
         return answer, citations
+        
+    except Exception as e:
+        return f'답변 생성 중 오류가 발생했습니다: {str(e)}', []
+
+def generate_s3_response_with_context(query, bucket_name, conversation_history):
+    """S3 검색 결과를 컨텍스트로 사용하여 답변 생성 + 대화 컨텍스트"""
+    try:
+        # S3에서 문서 검색
+        documents = search_s3_documents(query, bucket_name)
+        
+        if not documents:
+            return '관련 문서를 찾을 수 없습니다.', []
+        
+        # 대화 히스토리 구성
+        conversation_context = ""
+        if conversation_history:
+            recent_history = conversation_history[-4:]  # 최근 2개 대화 쌍
+            context_parts = []
+            
+            for i in range(0, len(recent_history), 2):
+                if i + 1 < len(recent_history):
+                    user_msg = recent_history[i]['content']
+                    assistant_msg = recent_history[i + 1]['content']
+                    context_parts.append(f"사용자: {user_msg}\n어시스턴트: {assistant_msg}")
+            
+            if context_parts:
+                conversation_context = f"\n\n이전 대화:\n{chr(10).join(context_parts)}\n"
+        
+        # 문서 컨텍스트 구성
+        doc_context = "\n\n".join([f"문서 {i+1}: {doc['content']}" for i, doc in enumerate(documents[:3])])
+        
+        # 프롬프트 구성
+        prompt = f"""다음 문서들과 이전 대화 내용을 참고하여 질문에 답변해주세요.
+
+참고 문서:
+{doc_context}{conversation_context}
+
+현재 질문: {query}
+
+답변:"""
+        
+        # Bedrock으로 답변 생성
+        response = bedrock_client.invoke_model(
+            modelId='anthropic.claude-3-haiku-20240307-v1:0',
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 1000,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            })
+        )
+        
+        result = json.loads(response['body'].read())
+        answer = result['content'][0]['text']
+        
+        return answer, documents
         
     except Exception as e:
         return f'답변 생성 중 오류가 발생했습니다: {str(e)}', []
@@ -259,11 +335,23 @@ with st.sidebar:
     st.markdown('### 🧠 Knowledge Base')
     st.success(f'Knowledge Base ID: {knowledge_base_id}')
     
-    if st.button('🗑️ 대화 초기화'):
-        st.session_state.messages = []
-        st.rerun()
+    # 대화 컨텍스트 상태 표시
+    message_count = len(st.session_state.messages)
+    if message_count > 0:
+        st.info(f'💬 현재 대화 기록: {message_count//2}개 대화 (총 {message_count}개 메시지)')
+        st.caption('💡 이전 대화 내용이 새로운 질문 답변에 활용됩니다.')
+    else:
+        st.info('💬 새로운 대화를 시작해보세요!')
     
-    if st.button('🔄 데이터 동기화'):
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button('🗑️ 대화 초기화'):
+            st.session_state.messages = []
+            st.success('대화 기록이 초기화되었습니다!')
+            st.rerun()
+    
+    with col2:
+        if st.button('🔄 데이터 동기화'):
         try:
             with st.spinner('데이터 동기화 중...'):
                 # 1. S3 동기화 (Notion → S3)
@@ -349,9 +437,13 @@ if prompt := st.chat_input('무엇이든 물어보세요! 예: 프로젝트 일�
         with st.spinner('관련 문서를 검색하고 답변을 생성하고 있습니다... 🤔'):
             try:
                 if search_method == 'Bedrock KnowledgeBase':
-                    # KnowledgeBase 사용
-                    answer, citations = generate_knowledgebase_response(prompt, knowledge_base_id)
-                    search_info = '🧠 Bedrock KnowledgeBase 사용'
+                    # KnowledgeBase 사용 (대화 컨텍스트 포함)
+                    answer, citations = generate_knowledgebase_response_with_context(
+                        prompt, 
+                        knowledge_base_id, 
+                        st.session_state.messages
+                    )
+                    search_info = '🧠 Bedrock KnowledgeBase 사용 (대화 컨텍스트 포함)'
                     
                     st.info(search_info)
                     st.markdown(answer)
@@ -411,17 +503,19 @@ if prompt := st.chat_input('무엇이든 물어보세요! 예: 프로젝트 일�
                         })
                 
                 else:
-                    # S3 직접 검색 사용
+                    # S3 직접 검색 사용 (대화 컨텍스트 포함)
                     bucket_name = f'notion-chatbot-data-965037532757-ap-northeast-2'
-                    documents = search_s3_documents(prompt, bucket_name)
-                    search_info = '📝 S3 키워드 검색 사용'
+                    answer, documents = generate_s3_response_with_context(
+                        prompt, 
+                        bucket_name, 
+                        st.session_state.messages
+                    )
+                    search_info = '📝 S3 키워드 검색 사용 (대화 컨텍스트 포함)'
                     
                     st.info(search_info)
+                    st.markdown(answer)
                     
                     if documents:
-                        answer = generate_bedrock_response(prompt, documents)
-                        st.markdown(answer)
-                        
                         # 참고 문서 표시
                         with st.expander('📚 참고 문서', expanded=True):
                             for i, doc in enumerate(documents[:3], 1):
