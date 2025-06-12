@@ -4,7 +4,7 @@ from stacks.vpc_stack import VpcStack
 from stacks.secrets_stack import SecretsStack
 from stacks.bedrock_stack import BedrockStack
 from stacks.opensearch_stack import OpenSearchStack
-from stacks.aurora_knowledgebase_stack import AuroraKnowledgeBaseStack
+from stacks.complete_knowledgebase_stack import CompleteKnowledgeBaseStack
 from stacks.ecs_stack import EcsStack
 
 app = cdk.App()
@@ -29,7 +29,7 @@ bedrock_stack = BedrockStack(
     env=env
 )
 
-# OpenSearch 스택 (벡터 검색 기반)
+# OpenSearch 스택 (벡터 검색 기반) - 기존 유지
 opensearch_stack = OpenSearchStack(
     app,
     "NotionChatbotOpenSearchStack",
@@ -38,22 +38,21 @@ opensearch_stack = OpenSearchStack(
     env=env
 )
 
-# Aurora KnowledgeBase 스택 (S3 + Aurora PostgreSQL)
-aurora_kb_stack = AuroraKnowledgeBaseStack(
+# 완전한 KnowledgeBase 스택 (S3 + OpenSearch Serverless + KnowledgeBase)
+complete_kb_stack = CompleteKnowledgeBaseStack(
     app,
-    "NotionChatbotAuroraKBStack",
-    vpc=vpc_stack.vpc,
+    "NotionChatbotCompleteKBStack",
     data_bucket=bedrock_stack.data_bucket,
     env=env
 )
 
-# ECS 스택 (Aurora KnowledgeBase 사용)
+# ECS 스택 (완전한 KnowledgeBase 사용)
 ecs_stack = EcsStack(
     app, 
     "NotionChatbotEcsStack",
     vpc=vpc_stack.vpc,
     secrets=secrets_stack.secrets,
-    knowledge_base_id=aurora_kb_stack.knowledge_base.ref,
+    knowledge_base_id=complete_kb_stack.knowledge_base.ref,
     data_bucket=bedrock_stack.data_bucket,
     opensearch_endpoint=opensearch_stack.vector_collection.attr_collection_endpoint,
     vector_lambda_arn=opensearch_stack.vector_lambda.function_arn,

@@ -127,7 +127,7 @@ class EcsStack(Stack):
                 "STREAMLIT_SERVER_PORT": "8501",
                 "STREAMLIT_SERVER_ADDRESS": "0.0.0.0",
                 "NOTION_TOKEN": "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",
-                "KNOWLEDGE_BASE_ID": knowledge_base_id,
+                "KNOWLEDGE_BASE_ID": "UXF2GSP5IT",
                 "OPENSEARCH_ENDPOINT": opensearch_endpoint,
                 "VECTOR_LAMBDA_ARN": vector_lambda_arn
             },

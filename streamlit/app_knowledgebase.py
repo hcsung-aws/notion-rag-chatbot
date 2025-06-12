@@ -20,7 +20,7 @@ def get_aws_clients():
     return s3, bedrock, bedrock_agent, lambda_client
 
 s3_client, bedrock_client, bedrock_agent_client, lambda_client = get_aws_clients()
-knowledge_base_id = os.getenv('KNOWLEDGE_BASE_ID', 'simple-kb-demo')
+knowledge_base_id = os.getenv('KNOWLEDGE_BASE_ID', 'UXF2GSP5IT')
 opensearch_endpoint = os.getenv('OPENSEARCH_ENDPOINT', '')
 vector_lambda_arn = os.getenv('VECTOR_LAMBDA_ARN', '')
 

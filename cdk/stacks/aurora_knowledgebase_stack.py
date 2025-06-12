@@ -37,7 +37,7 @@ class AuroraKnowledgeBaseStack(Stack):
             description="Subnet group for Aurora PostgreSQL",
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(
-                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS
+                subnet_type=ec2.SubnetType.PRIVATE_ISOLATED
             )
         )
 
@@ -48,8 +48,8 @@ class AuroraKnowledgeBaseStack(Stack):
             generate_secret_string=secretsmanager.SecretStringGenerator(
                 secret_string_template=json.dumps({"username": "postgres"}),
                 generate_string_key="password",
-                exclude_characters=" %+~`#$&*()|[]{}:;<>?!'/\"\\",
-                password_length=32
+                exclude_characters=" %+~`#$&*()|[]{}:;<>?!'/\"\\@",
+                password_length=16
             )
         )
 
@@ -57,7 +57,7 @@ class AuroraKnowledgeBaseStack(Stack):
         self.aurora_cluster = rds.DatabaseCluster(
             self, "AuroraCluster",
             engine=rds.DatabaseClusterEngine.aurora_postgres(
-                version=rds.AuroraPostgresEngineVersion.VER_15_4
+                version=rds.AuroraPostgresEngineVersion.VER_15_3
             ),
             credentials=rds.Credentials.from_secret(self.aurora_secret),
             default_database_name="notionkb",
@@ -77,6 +77,10 @@ class AuroraKnowledgeBaseStack(Stack):
             removal_policy=RemovalPolicy.DESTROY
         )
 
+        # Data API 활성화 (CloudFormation 속성 직접 설정)
+        cfn_cluster = self.aurora_cluster.node.default_child
+        cfn_cluster.add_property_override("EnableHttpEndpoint", True)
+
         # Bedrock KnowledgeBase 서비스 역할
         self.kb_service_role = iam.Role(
             self, "KnowledgeBaseServiceRole",
@@ -94,6 +98,7 @@ class AuroraKnowledgeBaseStack(Stack):
         self.aurora_secret.grant_read(self.kb_service_role)
         
         # RDS 접근 권한
+        cluster_arn = f"arn:aws:rds:{self.region}:{self.account}:cluster:{self.aurora_cluster.cluster_identifier}"
         self.kb_service_role.add_to_policy(
             iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
@@ -101,7 +106,7 @@ class AuroraKnowledgeBaseStack(Stack):
                     "rds:DescribeDBClusters",
                     "rds:DescribeDBInstances"
                 ],
-                resources=[self.aurora_cluster.cluster_arn]
+                resources=[cluster_arn]
             )
         )
 
@@ -119,6 +124,7 @@ class AuroraKnowledgeBaseStack(Stack):
         )
 
         # Bedrock KnowledgeBase 생성
+        cluster_arn = f"arn:aws:rds:{self.region}:{self.account}:cluster:{self.aurora_cluster.cluster_identifier}"
         self.knowledge_base = CfnResource(
             self, "NotionKnowledgeBase",
             type="AWS::Bedrock::KnowledgeBase",
@@ -135,7 +141,7 @@ class AuroraKnowledgeBaseStack(Stack):
                 "StorageConfiguration": {
                     "Type": "RDS",
                     "RdsConfiguration": {
-                        "ResourceArn": self.aurora_cluster.cluster_arn,
+                        "ResourceArn": cluster_arn,
                         "CredentialsSecretArn": self.aurora_secret.secret_arn,
                         "DatabaseName": "notionkb",
                         "TableName": "bedrock_integration.bedrock_kb",
