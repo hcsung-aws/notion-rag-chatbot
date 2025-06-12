@@ -371,8 +371,8 @@ with st.sidebar:
                 st.success(f'✅ KnowledgeBase 동기화 작업을 시작했습니다! (Job ID: {ingestion_job_id})')
                 st.info('💡 동기화 완료까지 1-2분 정도 소요될 수 있습니다.')
                 
-        except Exception as e:
-            st.error(f'❌ 동기화 실행 실패: {str(e)}')
+            except Exception as e:
+                st.error(f'❌ 동기화 실행 실패: {str(e)}')
 
 # 이전 메시지들 표시
 for message in st.session_state.messages:
