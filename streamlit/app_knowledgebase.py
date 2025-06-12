@@ -55,9 +55,10 @@ def search_knowledgebase(query, knowledge_base_id):
         return []
 
 def generate_knowledgebase_response(query, knowledge_base_id):
-    """KnowledgeBase를 사용한 RAG 응답 생성"""
+    """KnowledgeBase를 사용한 RAG 응답 생성 + 참고 문서 정보"""
     try:
-        response = bedrock_agent_client.retrieve_and_generate(
+        # 1. retrieve_and_generate로 답변 생성 (실제 KnowledgeBase 사용)
+        rag_response = bedrock_agent_client.retrieve_and_generate(
             input={
                 'text': query
             },
@@ -70,7 +71,37 @@ def generate_knowledgebase_response(query, knowledge_base_id):
             }
         )
         
-        return response.get('output', {}).get('text', ''), response.get('citations', [])
+        answer = rag_response.get('output', {}).get('text', '')
+        citations = rag_response.get('citations', [])
+        
+        # 2. citations가 없거나 부족하면 별도로 retrieve API 호출하여 참고 문서 정보 보강
+        if not citations or len(citations) == 0:
+            retrieve_response = bedrock_agent_client.retrieve(
+                knowledgeBaseId=knowledge_base_id,
+                retrievalQuery={
+                    'text': query
+                },
+                retrievalConfiguration={
+                    'vectorSearchConfiguration': {
+                        'numberOfResults': 5
+                    }
+                }
+            )
+            
+            # retrieve 결과를 citations 형태로 변환
+            citations = []
+            for result in retrieve_response.get('retrievalResults', []):
+                citation = {
+                    'retrievedReferences': [{
+                        'content': result.get('content', {}),
+                        'location': result.get('location', {}),
+                        'metadata': result.get('metadata', {}),
+                        'score': result.get('score', 0)
+                    }]
+                }
+                citations.append(citation)
+        
+        return answer, citations
         
     except Exception as e:
         return f'답변 생성 중 오류가 발생했습니다: {str(e)}', []
@@ -195,13 +226,43 @@ for message in st.session_state.messages:
             with st.expander('📚 참고 문서'):
                 for i, source in enumerate(message['sources'], 1):
                     if isinstance(source, dict):
-                        if 'title' in source:  # S3 방식
+                        # KnowledgeBase citations 구조 처리
+                        if 'retrievedReferences' in source:
+                            st.markdown(f'**📄 문서 {i}**')
+                            for ref in source['retrievedReferences']:
+                                # 내용 표시
+                                content = ref.get('content', {})
+                                if isinstance(content, dict):
+                                    content_text = content.get('text', '')
+                                else:
+                                    content_text = str(content)
+                                
+                                if content_text:
+                                    content_preview = content_text[:200] + '...' if len(content_text) > 200 else content_text
+                                    st.markdown(f'내용: {content_preview}')
+                                
+                                # 점수 표시
+                                score = ref.get('score', 0)
+                                if score > 0:
+                                    st.markdown(f'관련도: {score:.3f}')
+                                
+                                # 파일명 표시
+                                location = ref.get('location', {})
+                                if location.get('s3Location', {}).get('objectKey'):
+                                    key = location['s3Location']['objectKey']
+                                    filename = key.split('/')[-1] if '/' in key else key
+                                    st.markdown(f'출처: `{filename}`')
+                        
+                        # S3 직접 검색 방식 (기존)
+                        elif 'title' in source:
                             st.markdown(f'**{i}. {source.get("title", "문서")}**')
                             content_preview = source.get("content", "내용 없음")[:200]
                             st.markdown(f'내용: {content_preview}...')
                             if source.get('url'):
                                 st.markdown(f'[📄 원본 보기]({source["url"]})')
-                        else:  # KnowledgeBase 방식
+                        
+                        # 기타 형태
+                        else:
                             st.markdown(f'**{i}. 문서 {i}**')
                             content_preview = source.get("content", "내용 없음")[:200]
                             st.markdown(f'내용: {content_preview}...')
@@ -230,14 +291,42 @@ if prompt := st.chat_input('무엇이든 물어보세요! 예: 프로젝트 일�
                     if citations:
                         with st.expander('📚 참고 문서', expanded=True):
                             for i, citation in enumerate(citations, 1):
-                                st.markdown(f'**{i}. 인용 {i}**')
+                                st.markdown(f'**📄 문서 {i}**')
+                                
                                 if 'retrievedReferences' in citation:
                                     for ref in citation['retrievedReferences']:
-                                        content_preview = ref.get('content', {}).get('text', '')[:200]
-                                        st.markdown(f'내용: {content_preview}...')
-                                        if ref.get('location', {}).get('s3Location'):
-                                            s3_loc = ref['location']['s3Location']
-                                            st.markdown(f'소스: s3://{s3_loc.get("bucketName", "")}/{s3_loc.get("objectKey", "")}')
+                                        # 내용 표시
+                                        content = ref.get('content', {})
+                                        if isinstance(content, dict):
+                                            content_text = content.get('text', '')
+                                        else:
+                                            content_text = str(content)
+                                        
+                                        if content_text:
+                                            content_preview = content_text[:300] + '...' if len(content_text) > 300 else content_text
+                                            st.markdown(f'**내용:** {content_preview}')
+                                        
+                                        # 점수 표시
+                                        score = ref.get('score', 0)
+                                        if score > 0:
+                                            st.markdown(f'**관련도 점수:** {score:.3f}')
+                                        
+                                        # 소스 위치 표시
+                                        location = ref.get('location', {})
+                                        if location.get('s3Location'):
+                                            s3_loc = location['s3Location']
+                                            bucket = s3_loc.get('bucketName', '')
+                                            key = s3_loc.get('objectKey', '')
+                                            if key:
+                                                # 파일명만 추출
+                                                filename = key.split('/')[-1] if '/' in key else key
+                                                st.markdown(f'**출처:** `{filename}`')
+                                        
+                                        # 메타데이터 표시 (있는 경우)
+                                        metadata = ref.get('metadata', {})
+                                        if metadata:
+                                            st.markdown(f'**메타데이터:** {metadata}')
+                                
                                 st.markdown('---')
                         
                         # 메시지 히스토리에 추가
@@ -247,6 +336,7 @@ if prompt := st.chat_input('무엇이든 물어보세요! 예: 프로젝트 일�
                             'sources': citations
                         })
                     else:
+                        st.warning('참고 문서를 찾을 수 없습니다.')
                         st.session_state.messages.append({
                             'role': 'assistant', 
                             'content': answer
