@@ -52,9 +52,9 @@ ecs_stack = EcsStack(
     "NotionChatbotEcsStack",
     vpc=vpc_stack.vpc,
     secrets=secrets_stack.secrets,
-    knowledge_base_id=complete_kb_stack.knowledge_base.ref,
+    knowledge_base_id="UXF2GSP5IT",  # 현재 사용 중인 KnowledgeBase ID
     data_bucket=bedrock_stack.data_bucket,
-    opensearch_endpoint=opensearch_stack.vector_collection.attr_collection_endpoint,
+    opensearch_endpoint="https://yoo4ngz693ukb9yha288.ap-northeast-2.aoss.amazonaws.com",  # 현재 사용 중인 엔드포인트
     vector_lambda_arn=opensearch_stack.vector_lambda.function_arn,
     env=env
 )
