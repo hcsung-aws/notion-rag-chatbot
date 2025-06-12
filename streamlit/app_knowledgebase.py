@@ -352,12 +352,12 @@ with st.sidebar:
     
     with col2:
         if st.button('🔄 데이터 동기화'):
-        try:
-            with st.spinner('데이터 동기화 중...'):
-                # 1. S3 동기화 (Notion → S3)
-                response = lambda_client.invoke(
-                    FunctionName='NotionChatbotBedrockStack-NotionSyncFunctionFFED61-DntTQBnmfaiG',
-                    InvocationType='Event'
+            try:
+                with st.spinner('데이터 동기화 중...'):
+                    # 1. S3 동기화 (Notion → S3)
+                    response = lambda_client.invoke(
+                        FunctionName='NotionChatbotBedrockStack-NotionSyncFunctionFFED61-DntTQBnmfaiG',
+                        InvocationType='Event'
                 )
                 st.success('✅ S3 동기화 작업을 시작했습니다!')
                 
