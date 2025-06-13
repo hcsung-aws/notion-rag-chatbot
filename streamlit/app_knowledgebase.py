@@ -24,7 +24,25 @@ knowledge_base_id = os.getenv('KNOWLEDGE_BASE_ID', 'UXF2GSP5IT')
 opensearch_endpoint = os.getenv('OPENSEARCH_ENDPOINT', '')
 vector_lambda_arn = os.getenv('VECTOR_LAMBDA_ARN', '')
 
-def search_knowledgebase(query, knowledge_base_id):
+def get_document_info_from_s3(s3_key, bucket_name):
+    """S3에서 문서 정보 (제목, URL) 추출"""
+    try:
+        response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
+        content = response['Body'].read().decode('utf-8')
+        
+        # JSON 파싱하여 제목과 URL 추출
+        import json
+        doc_data = json.loads(content)
+        
+        title = doc_data.get('title', '제목 없음')
+        url = doc_data.get('url', '')
+        
+        return title, url
+    except Exception as e:
+        # 파일명에서 제목 추출 시도
+        filename = s3_key.split('/')[-1] if '/' in s3_key else s3_key
+        title = filename.replace('.json', '').replace('_', ' ')
+        return title, ''
     """Bedrock KnowledgeBase를 사용한 검색"""
     try:
         response = bedrock_agent_client.retrieve(
@@ -380,12 +398,31 @@ for message in st.session_state.messages:
         st.markdown(message['content'])
         if message.get('sources'):
             with st.expander('📚 참고 문서'):
+                bucket_name = 'notion-chatbot-data-965037532757-ap-northeast-2'
+                
                 for i, source in enumerate(message['sources'], 1):
                     if isinstance(source, dict):
                         # KnowledgeBase citations 구조 처리
                         if 'retrievedReferences' in source:
-                            st.markdown(f'**📄 문서 {i}**')
                             for ref in source['retrievedReferences']:
+                                # S3 위치에서 문서 정보 추출
+                                location = ref.get('location', {})
+                                title = f"문서 {i}"
+                                url = ""
+                                
+                                if location.get('s3Location'):
+                                    s3_loc = location['s3Location']
+                                    key = s3_loc.get('objectKey', '')
+                                    if key:
+                                        try:
+                                            title, url = get_document_info_from_s3(key, bucket_name)
+                                        except:
+                                            filename = key.split('/')[-1] if '/' in key else key
+                                            title = filename.replace('.json', '').replace('_', ' ')
+                                
+                                # S3 검색과 동일한 포맷으로 표시
+                                st.markdown(f'**{i}. {title}**')
+                                
                                 # 내용 표시
                                 content = ref.get('content', {})
                                 if isinstance(content, dict):
@@ -397,17 +434,9 @@ for message in st.session_state.messages:
                                     content_preview = content_text[:200] + '...' if len(content_text) > 200 else content_text
                                     st.markdown(f'내용: {content_preview}')
                                 
-                                # 점수 표시
-                                score = ref.get('score', 0)
-                                if score > 0:
-                                    st.markdown(f'관련도: {score:.3f}')
-                                
-                                # 파일명 표시
-                                location = ref.get('location', {})
-                                if location.get('s3Location', {}).get('objectKey'):
-                                    key = location['s3Location']['objectKey']
-                                    filename = key.split('/')[-1] if '/' in key else key
-                                    st.markdown(f'출처: `{filename}`')
+                                # URL이 있으면 원본 보기 링크 표시
+                                if url:
+                                    st.markdown(f'[📄 원본 보기]({url})')
                         
                         # S3 직접 검색 방식 (기존)
                         elif 'title' in source:
@@ -450,11 +479,30 @@ if prompt := st.chat_input('무엇이든 물어보세요! 예: 프로젝트 일�
                     
                     if citations:
                         with st.expander('📚 참고 문서', expanded=True):
+                            bucket_name = 'notion-chatbot-data-965037532757-ap-northeast-2'
+                            
                             for i, citation in enumerate(citations, 1):
-                                st.markdown(f'**📄 문서 {i}**')
-                                
                                 if 'retrievedReferences' in citation:
                                     for ref in citation['retrievedReferences']:
+                                        # S3 위치에서 문서 정보 추출
+                                        location = ref.get('location', {})
+                                        title = f"문서 {i}"
+                                        url = ""
+                                        
+                                        if location.get('s3Location'):
+                                            s3_loc = location['s3Location']
+                                            key = s3_loc.get('objectKey', '')
+                                            if key:
+                                                try:
+                                                    title, url = get_document_info_from_s3(key, bucket_name)
+                                                except:
+                                                    # 파일명에서 제목 추출
+                                                    filename = key.split('/')[-1] if '/' in key else key
+                                                    title = filename.replace('.json', '').replace('_', ' ')
+                                        
+                                        # S3 검색과 동일한 포맷으로 표시
+                                        st.markdown(f'**{i}. {title}**')
+                                        
                                         # 내용 표시
                                         content = ref.get('content', {})
                                         if isinstance(content, dict):
@@ -463,31 +511,14 @@ if prompt := st.chat_input('무엇이든 물어보세요! 예: 프로젝트 일�
                                             content_text = str(content)
                                         
                                         if content_text:
-                                            content_preview = content_text[:300] + '...' if len(content_text) > 300 else content_text
-                                            st.markdown(f'**내용:** {content_preview}')
+                                            content_preview = content_text[:200] + '...' if len(content_text) > 200 else content_text
+                                            st.markdown(f'내용: {content_preview}')
                                         
-                                        # 점수 표시
-                                        score = ref.get('score', 0)
-                                        if score > 0:
-                                            st.markdown(f'**관련도 점수:** {score:.3f}')
+                                        # URL이 있으면 원본 보기 링크 표시
+                                        if url:
+                                            st.markdown(f'[📄 원본 보기]({url})')
                                         
-                                        # 소스 위치 표시
-                                        location = ref.get('location', {})
-                                        if location.get('s3Location'):
-                                            s3_loc = location['s3Location']
-                                            bucket = s3_loc.get('bucketName', '')
-                                            key = s3_loc.get('objectKey', '')
-                                            if key:
-                                                # 파일명만 추출
-                                                filename = key.split('/')[-1] if '/' in key else key
-                                                st.markdown(f'**출처:** `{filename}`')
-                                        
-                                        # 메타데이터 표시 (있는 경우)
-                                        metadata = ref.get('metadata', {})
-                                        if metadata:
-                                            st.markdown(f'**메타데이터:** {metadata}')
-                                
-                                st.markdown('---')
+                                        st.markdown('---')
                         
                         # 메시지 히스토리에 추가
                         st.session_state.messages.append({
