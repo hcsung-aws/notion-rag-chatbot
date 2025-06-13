@@ -15,11 +15,12 @@ st.markdown('<div style="text-align: center; padding: 1rem 0; background: linear
 def get_aws_clients():
     s3 = boto3.client('s3', region_name='ap-northeast-2')
     bedrock = boto3.client('bedrock-runtime', region_name='ap-northeast-2')
-    bedrock_agent = boto3.client('bedrock-agent-runtime', region_name='ap-northeast-2')
+    bedrock_agent_runtime = boto3.client('bedrock-agent-runtime', region_name='ap-northeast-2')  # 실행 시간 작업용
+    bedrock_agent = boto3.client('bedrock-agent', region_name='ap-northeast-2')  # 관리 작업용
     lambda_client = boto3.client('lambda', region_name='ap-northeast-2')
-    return s3, bedrock, bedrock_agent, lambda_client
+    return s3, bedrock, bedrock_agent_runtime, bedrock_agent, lambda_client
 
-s3_client, bedrock_client, bedrock_agent_client, lambda_client = get_aws_clients()
+s3_client, bedrock_client, bedrock_agent_runtime_client, bedrock_agent_client, lambda_client = get_aws_clients()
 knowledge_base_id = os.getenv('KNOWLEDGE_BASE_ID', 'UXF2GSP5IT')
 opensearch_endpoint = os.getenv('OPENSEARCH_ENDPOINT', '')
 vector_lambda_arn = os.getenv('VECTOR_LAMBDA_ARN', '')
@@ -93,7 +94,7 @@ def generate_knowledgebase_response_with_context(query, knowledge_base_id, conve
                 context_query = f"이전 대화 내용:\n{chr(10).join(context_parts)}\n\n현재 질문: {query}"
         
         # 1. retrieve_and_generate로 답변 생성 (실제 KnowledgeBase 사용)
-        rag_response = bedrock_agent_client.retrieve_and_generate(
+        rag_response = bedrock_agent_runtime_client.retrieve_and_generate(
             input={
                 'text': context_query
             },
@@ -111,7 +112,7 @@ def generate_knowledgebase_response_with_context(query, knowledge_base_id, conve
         
         # 2. citations가 없거나 부족하면 별도로 retrieve API 호출하여 참고 문서 정보 보강
         if not citations or len(citations) == 0:
-            retrieve_response = bedrock_agent_client.retrieve(
+            retrieve_response = bedrock_agent_runtime_client.retrieve(
                 knowledgeBaseId=knowledge_base_id,
                 retrievalQuery={
                     'text': query  # 원본 질문으로 검색 (컨텍스트 제외)
