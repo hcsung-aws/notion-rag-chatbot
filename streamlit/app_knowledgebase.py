@@ -355,6 +355,49 @@ with st.sidebar:
     st.markdown('### 🧠 Knowledge Base')
     st.success(f'Knowledge Base ID: {knowledge_base_id}')
     
+    # 개별 동기화 섹션 추가
+    st.markdown('---')
+    st.markdown('### 🔄 개별 동기화')
+    
+    # S3 → KnowledgeBase 동기화
+    if st.button('📤 S3 → KnowledgeBase 동기화'):
+        try:
+            with st.spinner('KnowledgeBase 동기화 중...'):
+                # KnowledgeBase 동기화만 실행
+                kb_response = bedrock_agent_client.start_ingestion_job(
+                    knowledgeBaseId=knowledge_base_id,
+                    dataSourceId='X1FS4XS5HU',
+                    description='Manual S3 to KnowledgeBase sync'
+                )
+                
+                ingestion_job_id = kb_response['ingestionJob']['ingestionJobId']
+                st.success(f'✅ KnowledgeBase 동기화 작업을 시작했습니다!')
+                st.info(f'📋 Job ID: {ingestion_job_id}')
+                st.info('💡 S3의 기존 데이터를 KnowledgeBase에 동기화합니다.')
+                st.info('💡 동기화 완료까지 1-2분 정도 소요될 수 있습니다.')
+                
+        except Exception as e:
+            st.error(f'❌ KnowledgeBase 동기화 실패: {str(e)}')
+    
+    # Notion → S3 동기화
+    if st.button('📥 Notion → S3 동기화'):
+        try:
+            with st.spinner('S3 동기화 중...'):
+                # S3 동기화만 실행 (Lambda 함수 호출)
+                response = lambda_client.invoke(
+                    FunctionName='NotionChatbotBedrockStack-NotionSyncFunctionFFED61-DntTQBnmfaiG',
+                    InvocationType='Event'
+                )
+                st.success('✅ S3 동기화 작업을 시작했습니다!')
+                st.info('💡 Notion의 최신 데이터를 S3에 저장합니다.')
+                st.warning('⚠️ S3 동기화 후 KnowledgeBase 동기화도 별도로 실행해주세요.')
+                
+        except Exception as e:
+            st.error(f'❌ S3 동기화 실패: {str(e)}')
+    
+    st.markdown('---')
+    st.markdown('### 🔄 통합 동기화')
+    
     # 대화 컨텍스트 상태 표시
     message_count = len(st.session_state.messages)
     if message_count > 0:
