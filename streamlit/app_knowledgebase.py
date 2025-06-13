@@ -25,24 +25,25 @@ opensearch_endpoint = os.getenv('OPENSEARCH_ENDPOINT', '')
 vector_lambda_arn = os.getenv('VECTOR_LAMBDA_ARN', '')
 
 def get_document_info_from_s3(s3_key, bucket_name):
-    """S3에서 문서 정보 (제목, URL) 추출"""
+    """S3에서 문서 정보 (제목, URL, 내용) 추출"""
     try:
         response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
         content = response['Body'].read().decode('utf-8')
         
-        # JSON 파싱하여 제목과 URL 추출
+        # JSON 파싱하여 제목, URL, 내용 추출
         import json
         doc_data = json.loads(content)
         
         title = doc_data.get('title', '제목 없음')
         url = doc_data.get('url', '')
+        content_text = doc_data.get('content', '')
         
-        return title, url
+        return title, url, content_text
     except Exception as e:
         # 파일명에서 제목 추출 시도
         filename = s3_key.split('/')[-1] if '/' in s3_key else s3_key
         title = filename.replace('.json', '').replace('_', ' ')
-        return title, ''
+        return title, '', ''
     """Bedrock KnowledgeBase를 사용한 검색"""
     try:
         response = bedrock_agent_client.retrieve(
@@ -409,32 +410,36 @@ for message in st.session_state.messages:
                                 location = ref.get('location', {})
                                 title = f"문서 {i}"
                                 url = ""
+                                s3_content = ""
                                 
                                 if location.get('s3Location'):
                                     s3_loc = location['s3Location']
                                     key = s3_loc.get('objectKey', '')
                                     if key:
                                         try:
-                                            title, url = get_document_info_from_s3(key, bucket_name)
-                                        except:
+                                            title, url, s3_content = get_document_info_from_s3(key, bucket_name)
+                                        except Exception as e:
                                             filename = key.split('/')[-1] if '/' in key else key
                                             title = filename.replace('.json', '').replace('_', ' ')
                                 
-                                # S3 검색과 동일한 포맷으로 표시
+                                # S3 검색과 완전히 동일한 포맷으로 표시
                                 st.markdown(f'**{i}. {title}**')
                                 
-                                # 내용 표시
-                                content = ref.get('content', {})
-                                if isinstance(content, dict):
-                                    content_text = content.get('text', '')
+                                # S3에서 가져온 내용이 있으면 사용, 없으면 KnowledgeBase 내용 사용
+                                if s3_content:
+                                    content_preview = s3_content[:200] + '...' if len(s3_content) > 200 else s3_content
                                 else:
-                                    content_text = str(content)
-                                
-                                if content_text:
+                                    # KnowledgeBase에서 가져온 내용 사용
+                                    content = ref.get('content', {})
+                                    if isinstance(content, dict):
+                                        content_text = content.get('text', '')
+                                    else:
+                                        content_text = str(content)
                                     content_preview = content_text[:200] + '...' if len(content_text) > 200 else content_text
-                                    st.markdown(f'내용: {content_preview}')
                                 
-                                # URL이 있으면 원본 보기 링크 표시
+                                st.markdown(f'내용: {content_preview}')
+                                
+                                # URL이 있으면 원본 보기 링크 표시 (S3 검색과 동일)
                                 if url:
                                     st.markdown(f'[📄 원본 보기]({url})')
                         
@@ -488,33 +493,37 @@ if prompt := st.chat_input('무엇이든 물어보세요! 예: 프로젝트 일�
                                         location = ref.get('location', {})
                                         title = f"문서 {i}"
                                         url = ""
+                                        s3_content = ""
                                         
                                         if location.get('s3Location'):
                                             s3_loc = location['s3Location']
                                             key = s3_loc.get('objectKey', '')
                                             if key:
                                                 try:
-                                                    title, url = get_document_info_from_s3(key, bucket_name)
-                                                except:
+                                                    title, url, s3_content = get_document_info_from_s3(key, bucket_name)
+                                                except Exception as e:
                                                     # 파일명에서 제목 추출
                                                     filename = key.split('/')[-1] if '/' in key else key
                                                     title = filename.replace('.json', '').replace('_', ' ')
                                         
-                                        # S3 검색과 동일한 포맷으로 표시
+                                        # S3 검색과 완전히 동일한 포맷으로 표시
                                         st.markdown(f'**{i}. {title}**')
                                         
-                                        # 내용 표시
-                                        content = ref.get('content', {})
-                                        if isinstance(content, dict):
-                                            content_text = content.get('text', '')
+                                        # S3에서 가져온 내용이 있으면 사용, 없으면 KnowledgeBase 내용 사용
+                                        if s3_content:
+                                            content_preview = s3_content[:200] + '...' if len(s3_content) > 200 else s3_content
                                         else:
-                                            content_text = str(content)
-                                        
-                                        if content_text:
+                                            # KnowledgeBase에서 가져온 내용 사용
+                                            content = ref.get('content', {})
+                                            if isinstance(content, dict):
+                                                content_text = content.get('text', '')
+                                            else:
+                                                content_text = str(content)
                                             content_preview = content_text[:200] + '...' if len(content_text) > 200 else content_text
-                                            st.markdown(f'내용: {content_preview}')
                                         
-                                        # URL이 있으면 원본 보기 링크 표시
+                                        st.markdown(f'내용: {content_preview}')
+                                        
+                                        # URL이 있으면 원본 보기 링크 표시 (S3 검색과 동일)
                                         if url:
                                             st.markdown(f'[📄 원본 보기]({url})')
                                         
