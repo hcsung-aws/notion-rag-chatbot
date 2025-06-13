@@ -25,6 +25,19 @@ class CompleteKnowledgeBaseStack(Stack):
 
         # S3 데이터 소스 접근 권한
         data_bucket.grant_read(self.kb_service_role)
+        
+        # KnowledgeBase가 S3 버킷 목록을 확인할 수 있도록 ListBucket 권한 추가
+        self.kb_service_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "s3:ListBucket"
+                ],
+                resources=[
+                    data_bucket.bucket_arn
+                ]
+            )
+        )
 
         # Bedrock 모델 접근 권한 (임베딩용)
         self.kb_service_role.add_to_policy(
