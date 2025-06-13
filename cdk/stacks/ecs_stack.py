@@ -89,7 +89,10 @@ class EcsStack(Stack):
                     "bedrock:InvokeModel",
                     "bedrock:InvokeModelWithResponseStream",
                     "bedrock:Retrieve",
-                    "bedrock:RetrieveAndGenerate"
+                    "bedrock:RetrieveAndGenerate",
+                    "bedrock:StartIngestionJob",
+                    "bedrock:ListIngestionJobs", 
+                    "bedrock:GetIngestionJob"
                 ],
                 resources=[
                     f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
