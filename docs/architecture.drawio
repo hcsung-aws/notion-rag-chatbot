@@ -1,0 +1,233 @@
+<mxfile host="app.diagrams.net" modified="2025-06-13T04:20:00.000Z" agent="5.0" etag="abc123" version="24.2.5" type="device">
+  <diagram name="Notion RAG Chatbot Architecture" id="architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- AWS Cloud Container -->
+        <mxCell id="aws-cloud" value="AWS Cloud" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="50" width="1070" height="720" as="geometry" />
+        </mxCell>
+        
+        <!-- User -->
+        <mxCell id="user" value="👤 사용자" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="400" width="80" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Data Sync Layer -->
+        <mxCell id="sync-layer" value="Data Sync Layer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="80" width="480" height="200" as="geometry" />
+        </mxCell>
+        
+        <!-- EventBridge -->
+        <mxCell id="eventbridge" value="⏰ EventBridge&#xa;Scheduler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="100" y="120" width="100" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda Function -->
+        <mxCell id="lambda" value="⚡ Lambda Function&#xa;Notion Sync" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="250" y="120" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Notion API -->
+        <mxCell id="notion-api" value="📝 Notion API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="120" width="100" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- S3 Bucket -->
+        <mxCell id="s3" value="🗄️ S3 Bucket&#xa;notion-data/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="100" y="200" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- KnowledgeBase -->
+        <mxCell id="knowledgebase" value="🧠 KnowledgeBase&#xa;Vector Store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#01579b;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="200" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- OpenSearch Serverless -->
+        <mxCell id="opensearch" value="🔍 OpenSearch&#xa;Serverless" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#4caf50;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="450" y="200" width="100" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Chat Service Layer -->
+        <mxCell id="chat-layer" value="Chat Service Layer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d4edda;strokeColor=#28a745;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="320" width="480" height="280" as="geometry" />
+        </mxCell>
+        
+        <!-- Application Load Balancer -->
+        <mxCell id="alb" value="⚖️ Application&#xa;Load Balancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="100" y="350" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- ECS Fargate -->
+        <mxCell id="ecs" value="🐳 ECS Fargate&#xa;Streamlit App" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#4caf50;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="350" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Bedrock Claude -->
+        <mxCell id="bedrock" value="🤖 Amazon Bedrock&#xa;Claude 3 Haiku" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#ff9800;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="100" y="450" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Search Methods -->
+        <mxCell id="search1" value="🔍 검색 방식 1&#xa;S3 키워드 검색" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#9c27b0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="280" y="450" width="100" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="search2" value="🧠 검색 방식 2&#xa;KnowledgeBase 벡터" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#01579b;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="450" width="100" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Sync Control -->
+        <mxCell id="sync-control" value="🔄 동기화 제어" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffecb3;strokeColor=#ffa000;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="280" y="520" width="100" height="40" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="status-check" value="📊 상태 확인" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffecb3;strokeColor=#ffa000;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="520" width="100" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- Security & Config Layer -->
+        <mxCell id="security-layer" value="Security &amp; Configuration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#f44336;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="80" width="480" height="520" as="geometry" />
+        </mxCell>
+        
+        <!-- Secrets Manager -->
+        <mxCell id="secrets" value="🔐 Secrets Manager&#xa;Notion Token" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#f44336;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="630" y="120" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- IAM Roles -->
+        <mxCell id="iam" value="👤 IAM Roles&#xa;권한 관리" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#f44336;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="780" y="120" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Features Box -->
+        <mxCell id="features" value="✨ 주요 기능&#xa;&#xa;• 이중 검색 방식 비교&#xa;• 대화 컨텍스트 유지&#xa;• 실시간 동기화 상태&#xa;• 참고 문서 링크 제공&#xa;• 통합 동기화 제어" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#4caf50;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="630" y="220" width="200" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Performance Box -->
+        <mxCell id="performance" value="⚡ 성능 지표&#xa;&#xa;• KnowledgeBase: 3-7초&#xa;• S3 검색: 2-5초&#xa;• 대화 컨텍스트: +1-2초&#xa;• 동시 사용자: ~100명&#xa;• 벡터 인덱스: 수천 문서" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#ff9800;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="860" y="220" width="200" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Cost Box -->
+        <mxCell id="cost" value="💰 예상 비용 (월간)&#xa;&#xa;• ECS Fargate: $25&#xa;• Claude 3 Haiku: $5-20&#xa;• OpenSearch: $15-30&#xa;• S3 + Lambda: $5&#xa;• KnowledgeBase: $10&#xa;• 기타: $10&#xa;&#xa;총 예상: $70-100" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#01579b;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="630" y="370" width="200" height="150" as="geometry" />
+        </mxCell>
+        
+        <!-- Tech Stack Box -->
+        <mxCell id="tech-stack" value="🛠️ 기술 스택&#xa;&#xa;Frontend:&#xa;• Streamlit&#xa;&#xa;Backend:&#xa;• ECS Fargate&#xa;• Lambda&#xa;• S3&#xa;&#xa;AI/ML:&#xa;• Bedrock KnowledgeBase&#xa;• OpenSearch Serverless&#xa;• Titan Embeddings&#xa;&#xa;Infrastructure:&#xa;• AWS CDK&#xa;• Docker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#9c27b0;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="860" y="370" width="200" height="200" as="geometry" />
+        </mxCell>
+        
+        <!-- Data Flow Arrows -->
+        <!-- EventBridge to Lambda -->
+        <mxCell id="arrow1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;" edge="1" parent="1" source="eventbridge" target="lambda">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label1" value="1시간마다 트리거" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="100" width="80" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda to Notion API -->
+        <mxCell id="arrow2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;" edge="1" parent="1" source="lambda" target="notion-api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label2" value="데이터 추출" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="100" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Lambda to S3 -->
+        <mxCell id="arrow3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;" edge="1" parent="1" source="lambda" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label3" value="JSON 저장" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="180" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- S3 to KnowledgeBase -->
+        <mxCell id="arrow4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;" edge="1" parent="1" source="s3" target="knowledgebase">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label4" value="자동 동기화" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="270" width="70" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- KnowledgeBase to OpenSearch -->
+        <mxCell id="arrow5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;" edge="1" parent="1" source="knowledgebase" target="opensearch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label5" value="벡터 인덱싱" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="270" width="70" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- User to ALB -->
+        <mxCell id="arrow6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#4caf50;" edge="1" parent="1" source="user" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label6" value="질문 입력" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="110" y="380" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- ALB to ECS -->
+        <mxCell id="arrow7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;" edge="1" parent="1" source="alb" target="ecs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label7" value="요청 전달" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="330" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- ECS to Search Methods -->
+        <mxCell id="arrow8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#9c27b0;" edge="1" parent="1" source="ecs" target="search1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#01579b;" edge="1" parent="1" source="ecs" target="search2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- ECS to Bedrock -->
+        <mxCell id="arrow10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#ff9800;" edge="1" parent="1" source="ecs" target="bedrock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label10" value="답변 생성" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="190" y="430" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- ECS to Sync Control -->
+        <mxCell id="arrow11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#ffa000;" edge="1" parent="1" source="ecs" target="sync-control">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#ffa000;" edge="1" parent="1" source="ecs" target="status-check">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Security connections -->
+        <mxCell id="arrow13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;strokeColor=#f44336;dashed=1;" edge="1" parent="1" source="secrets" target="lambda">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;strokeColor=#f44336;dashed=1;" edge="1" parent="1" source="secrets" target="ecs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;strokeColor=#f44336;dashed=1;" edge="1" parent="1" source="iam" target="ecs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;strokeColor=#f44336;dashed=1;" edge="1" parent="1" source="iam" target="lambda">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;strokeColor=#f44336;dashed=1;" edge="1" parent="1" source="iam" target="knowledgebase">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
